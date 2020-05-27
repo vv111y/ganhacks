@@ -1,10 +1,12 @@
-(this list is no longer maintained, and I am not sure how relevant it is
-in 2020)
+#+LaTeX_HEADER: \usepackage[backend=biber, style=ieee]{biblatex} 
+#+LATEX_HEADER: \addbibresource{~/Documents/2Research/1RefsMeta/Zotero.bib}
+
+As the original /ganhacks/ is no longer maintained, this fork is an attempt to keep the information up-to-date with current hacks, at least for 2020.  
 
 * How to Train a GAN? Tips and tricks to make GANs work
-  :PROPERTIES:
-  :CUSTOM_ID: how-to-train-a-gan-tips-and-tricks-to-make-gans-work
-  :END:
+:PROPERTIES:
+:CUSTOM_ID: how-to-train-a-gan-tips-and-tricks-to-make-gans-work
+:END:
 
 While research in Generative Adversarial Networks (GANs) continues to
 improve the fundamental stability of these models, we use a bunch of
@@ -18,7 +20,7 @@ If you find a trick that is particularly useful in practice, please open
 a Pull Request to add it to the document. If we find it to be reasonable
 and verified, we will merge it in.
 
-** 1. Normalize the inputs
+** 1: Normalize the inputs
    :PROPERTIES:
    :CUSTOM_ID: normalize-the-inputs
    :END:
@@ -37,6 +39,9 @@ formulation has vanishing gradients early on - Goodfellow et. al (2014)
 
 In practice, works well: - Flip labels when training generator: real =
 fake, fake = real
+
+This is called Non-saturating loss, and was confirmed in 2019 paper /A Large-Scale Study on Regularization and Normalization in GANs/ (http://arxiv.org/abs/1807.04720)
+
 
 ** 3: Use a spherical Z
    :PROPERTIES:
@@ -58,31 +63,51 @@ fake, fake = real
 - Tom White's [[https://arxiv.org/abs/1609.04468][Sampling Generative
   Networks]] ref code https://github.com/dribnet/plat has more details
 
-** 4 Normalization 
-*** 4.a Batch normalization
-   :PROPERTIES:
-   :CUSTOM_ID: a-batch-normalization
-   :END:
-
+** 4: Batching
 - Construct different mini-batches for real and fake, i.e. each
   mini-batch needs to contain only all real images or all generated
-  images.
-- 
+  images. Do not mix the different sets together. 
 
 #+CAPTION: batchmix
 [[file:images/batchmix.png]]
 
-*** 4.b Layer normalization
+** 5: Normalization 
+*** 5.a Batch normalization
+   :PROPERTIES:
+   :CUSTOM_ID: a-batch-normalization
+   :END:
+- Apply batch normalization to all but the last layers for both the generator and discriminator
+
+*** 5.b Spectral normalization
    :PROPERTIES:
    :CUSTOM_ID: b-layer-normalization
    :END:
+- Highly recommended in /A Large-Scale Study on Regularization and Normalization in GANs/ (http://arxiv.org/abs/1807.04720)
+  - use spectral normalization on discriminator (https://arxiv.org/abs/1802.05957)
+  - this can also be used in the generator (http://arxiv.org/abs/1805.08318)
+- Spectral normalization reduces the magnitude of the weight updates:
+  - you will need to train longer, or update learning rate
+  - if SN is only applied to one neural-net then you should either increase its learning rate, or increase the number of iterations for it. 
 
-- when batchnorm is not an option use instance normalization (for each
-  sample, subtract mean and divide by standard deviation).
-- use spectral normalization on discriminator
-  (https://arxiv.org/abs/1802.05957)
+In Pytorch (https://pytorch.org/docs/master/generated/torch.nn.utils.spectral_norm.html)
+#+begin_src python
+  import torch.nn as nn
+  from torch.nn.utils import spectral_norm
 
-** 5: Avoid Sparse Gradients: ReLU, MaxPool
+  def model(nn.Module):
+      def __init__(self):
+          super(model, self).__init__()
+          # ...
+          self.m = spectral_norm(nn.Linear(20,40))
+#+end_src
+ 
+*** 5.c Instance normalization
+- instance normalization is also an option (for each sample, subtract mean and divide by standard deviation).
+  - Instance normalization can significant improve style based output, see: Instance Normalization: The Missing Ingredient for Fast Stylization (http://arxiv.org/abs/1607.08022) 
+  - For large models such as CycleGAN it is done out of necessaty (if any normalization is to be done at all). Given GPU RAM constraints only one instance maybe available.
+    
+** 6: Gradients
+*** 6.a: Avoid Sparse Gradients: ReLU, MaxPool
    :PROPERTIES:
    :CUSTOM_ID: avoid-sparse-gradients-relu-maxpool
    :END:
@@ -93,8 +118,15 @@ fake, fake = real
 - For Upsampling, use: PixelShuffle, ConvTranspose2d + stride
 
   - PixelShuffle: https://arxiv.org/abs/1609.05158
+*** 6.b: Gradient Penalty
 
-** 6: Use Soft and Noisy Labels
+- see /Improved Training of Wasserstein GANs/ (https://arxiv.org/abs/1704.00028)
+  - confirmed in /A Large-Scale Study on Regularization and Normalization in GANs/ (http://arxiv.org/abs/1807.04720)
+- Pytorch implementation: https://github.com/EmilienDupont/wgan-gp
+- TensorFlow implementation: https://github.com/igul222/improved_wgan_training
+- Note: this has a higher computational cost
+
+** 7: Use Soft and Noisy Labels
    :PROPERTIES:
    :CUSTOM_ID: use-soft-and-noisy-labels
    :END:
@@ -109,7 +141,7 @@ fake, fake = real
 - make the labels the noisy for the discriminator: occasionally flip the
   labels when training the discriminator
 
-** 7: DCGAN / Hybrid Models
+** 8: DCGAN / Hybrid Models
    :PROPERTIES:
    :CUSTOM_ID: dcgan-hybrid-models
    :END:
@@ -118,7 +150,7 @@ fake, fake = real
 - if you cant use DCGANs and no model is stable, use a hybrid model : KL
   + GAN or VAE + GAN
 
-** 8: Use stability tricks from RL
+** 9: Use stability tricks from RL
    :PROPERTIES:
    :CUSTOM_ID: use-stability-tricks-from-rl
    :END:
@@ -132,7 +164,7 @@ fake, fake = real
 - All stability tricks that work for deep deterministic policy gradients
 - See Pfau & Vinyals (2016)
 
-** 9: Use the ADAM Optimizer
+** 10: Use the ADAM Optimizer
    :PROPERTIES:
    :CUSTOM_ID: use-the-adam-optimizer
    :END:
@@ -143,7 +175,7 @@ fake, fake = real
 
 - Use SGD for discriminator and ADAM for generator
 
-** 10: Track failures early
+** 12: Track failures early
    :PROPERTIES:
    :CUSTOM_ID: track-failures-early
    :END:
@@ -155,11 +187,10 @@ fake, fake = real
 - if loss of generator steadily decreases, then it's fooling D with
   garbage (says martin)
 
-** 11: Dont balance loss via statistics (unless you have a good reason
-to)
-   :PROPERTIES:
-   :CUSTOM_ID: dont-balance-loss-via-statistics-unless-you-have-a-good-reason-to
-   :END:
+** 12: Dont balance loss via statistics (unless you have a good reason to)
+:PROPERTIES:
+:CUSTOM_ID: dont-balance-loss-via-statistics-unless-you-have-a-good-reason-to
+:END:
 
 - Dont try to find a (number of G / number of D) schedule to uncollapse
   training
@@ -176,7 +207,7 @@ For example
     train G
 #+END_EXAMPLE
 
-** 12: If you have labels, use them
+** 13: If you have labels, use them
    :PROPERTIES:
    :CUSTOM_ID: if-you-have-labels-use-them
    :END:
@@ -184,22 +215,19 @@ For example
 - if you have labels available, training the discriminator to also
   classify the samples: auxillary GANs
 
-** 13: Add noise to inputs, decay over time
+** 14: Add noise to inputs, decay over time
    :PROPERTIES:
    :CUSTOM_ID: add-noise-to-inputs-decay-over-time
    :END:
 
-- Add some artificial noise to inputs to D (Arjovsky et. al., Huszar,
-  2016)
-
+- Add some artificial noise to inputs to D (Arjovsky et. al., Huszar, 2016)
   - http://www.inference.vc/instance-noise-a-trick-for-stabilising-gan-training/
   - https://openreview.net/forum?id=Hk4_qw5xe
 
 - adding gaussian noise to every layer of generator (Zhao et. al. EBGAN)
-
   - Improved GANs: OpenAI code also has it (commented out)
 
-** 14: Train discriminator more
+** 15: Train discriminator more
    :PROPERTIES:
    :CUSTOM_ID: train-discriminator-more
    :END:
@@ -210,14 +238,14 @@ For example
 
   - also makes losses correlates with sample quality
 
-** 15: [notsure] Batch Discrimination
+** 16: [notsure] Batch Discrimination
    :PROPERTIES:
    :CUSTOM_ID: notsure-batch-discrimination
    :END:
 
 - Mixed results
 
-** 16: Discrete variables in Conditional GANs
+** 17: Discrete variables in Conditional GANs
    :PROPERTIES:
    :CUSTOM_ID: discrete-variables-in-conditional-gans
    :END:
@@ -227,7 +255,7 @@ For example
 - Keep embedding dimensionality low and upsample to match image channel
   size
 
-** 17: Use Dropouts in G in both train and test phase
+** 18: Use Dropouts in G in both train and test phase
    :PROPERTIES:
    :CUSTOM_ID: use-dropouts-in-g-in-both-train-and-test-phase
    :END:
@@ -237,7 +265,7 @@ For example
   time
 - https://arxiv.org/abs/1611.07004v1
 
-** 18: Sample From G History
+** 19: Sample From G History
    :PROPERTIES:
    :CUSTOM_ID: sample-from-g-history
    :END:
@@ -246,7 +274,7 @@ For example
   and half from a history of generated images
 - Section 2.3 https://arxiv.org/abs/1612.07828
 
-** 19: Historical Averaging
+** 20: Historical Averaging
    :PROPERTIES:
    :CUSTOM_ID: historical-averaging
    :END:
@@ -263,3 +291,4 @@ For example
 - Emily Denton
 - Martin Arjovsky
 - Michael Mathieu
+- Contributors
